@@ -6,7 +6,7 @@ import { useUser } from './stores/user'
 
 // Import views
 import HomeView from './views/HomeView.vue'
-import AddBookView from './views/AddBookView.vue'
+import AddArticleView from './views/AddArticleView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
 import LoginView from './views/LoginView.vue'
 
@@ -14,7 +14,7 @@ import LoginView from './views/LoginView.vue'
 const routes = [
   { path: '/login', name: 'login', component: LoginView },
   { path: '/', name: 'home', component: HomeView, meta: { requiresAuth: true } },
-  { path: '/add', name: 'add-book', component: AddBookView, meta: { requiresAuth: true } },
+  { path: '/add', name: 'add-article', component: AddArticleView, meta: { requiresAuth: true } },
   { path: '/leaderboard', name: 'leaderboard', component: LeaderboardView, meta: { requiresAuth: true } }
 ]
 

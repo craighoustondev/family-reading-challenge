@@ -1,7 +1,7 @@
 <template>
   <div class="app" v-if="isLoggedIn">
     <header class="header">
-      <h1>📚 Family Reading Challenge</h1>
+      <h1>📰 Family Reading Challenge</h1>
       <div class="header-user" @click="showLogoutMenu = !showLogoutMenu">
         <span class="header-avatar">{{ userInitials }}</span>
         <div v-if="showLogoutMenu" class="logout-menu">
@@ -19,12 +19,12 @@
     
     <nav class="nav">
       <router-link to="/" class="nav-item" :class="{ active: $route.path === '/' }">
-        <span class="nav-icon">📖</span>
-        <span class="nav-label">My Books</span>
+        <span class="nav-icon">📰</span>
+        <span class="nav-label">Articles</span>
       </router-link>
       <router-link to="/add" class="nav-item" :class="{ active: $route.path === '/add' }">
         <span class="nav-icon">➕</span>
-        <span class="nav-label">Add Book</span>
+        <span class="nav-label">Share</span>
       </router-link>
       <router-link to="/leaderboard" class="nav-item" :class="{ active: $route.path === '/leaderboard' }">
         <span class="nav-icon">🏆</span>
