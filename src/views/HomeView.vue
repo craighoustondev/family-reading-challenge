@@ -26,11 +26,86 @@
             <span class="article-title">{{ article.title || extractDomain(article.url) }}</span>
             <span class="article-url">{{ extractDomain(article.url) }}</span>
           </a>
+          
           <div class="article-meta">
             <span class="article-sharer">Shared by {{ article.users?.name || 'Unknown' }}</span>
             <span class="article-time">{{ formatRelativeTime(article.created_at) }}</span>
           </div>
+
+          <!-- Comments Section -->
+          <div class="comments-section">
+            <button 
+              class="comments-toggle"
+              @click="toggleComments(article.id)"
+            >
+              💬 {{ getCommentCount(article.id) }} {{ getCommentCount(article.id) === 1 ? 'comment' : 'comments' }}
+              <span class="toggle-arrow">{{ expandedArticles[article.id] ? '▼' : '▶' }}</span>
+            </button>
+
+            <div v-if="expandedArticles[article.id]" class="comments-expanded">
+              <!-- Existing comments -->
+              <div v-if="articleComments[article.id]?.length > 0" class="comments-list">
+                <div 
+                  v-for="comment in articleComments[article.id]" 
+                  :key="comment.id" 
+                  class="comment"
+                >
+                  <div class="comment-header">
+                    <span class="comment-author">{{ comment.users?.name }}</span>
+                    <span class="comment-time">{{ formatRelativeTime(comment.created_at) }}</span>
+                  </div>
+                  
+                  <!-- Edit mode -->
+                  <div v-if="editingCommentId === comment.id" class="comment-edit-form">
+                    <textarea
+                      v-model="editingCommentContent"
+                      class="comment-textarea"
+                      rows="2"
+                    ></textarea>
+                    <div class="comment-edit-actions">
+                      <button class="btn btn-small btn-primary" @click="saveCommentEdit(comment)" :disabled="savingComment">
+                        Save
+                      </button>
+                      <button class="btn btn-small" @click="cancelCommentEdit">Cancel</button>
+                    </div>
+                  </div>
+                  
+                  <!-- Display mode -->
+                  <div v-else>
+                    <p class="comment-content">{{ comment.content }}</p>
+                    <div v-if="comment.user_id === currentUser?.id" class="comment-actions">
+                      <button class="comment-action-btn" @click="startEditComment(comment)">Edit</button>
+                      <button class="comment-action-btn" @click="handleDeleteComment(article.id, comment)">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add comment form (if user hasn't commented yet) -->
+              <div v-if="!userHasCommented(article.id)" class="add-comment-form">
+                <textarea
+                  v-model="newComments[article.id]"
+                  class="comment-textarea"
+                  placeholder="Add your comment..."
+                  rows="2"
+                ></textarea>
+                <button 
+                  class="btn btn-small btn-primary"
+                  @click="handleAddComment(article.id)"
+                  :disabled="!newComments[article.id]?.trim() || savingComment"
+                >
+                  {{ savingComment ? 'Posting...' : 'Post Comment' }}
+                </button>
+              </div>
+
+              <!-- Show message if user already commented -->
+              <div v-else class="already-commented">
+                <span>✓ You've commented on this article</span>
+              </div>
+            </div>
+          </div>
         </div>
+        
         <button 
           v-if="article.user_id === currentUser?.id"
           class="article-delete" 
@@ -45,12 +120,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useUser } from '../stores/user'
 import { useArticles } from '../stores/articles'
+import { fetchCommentsForArticle, addComment, updateComment, deleteComment } from '../stores/comments'
 
 const { currentUser } = useUser()
 const { articles, loading, loadArticles, deleteArticle } = useArticles()
+
+// Comments state
+const articleComments = reactive({})
+const expandedArticles = reactive({})
+const newComments = reactive({})
+const editingCommentId = ref(null)
+const editingCommentContent = ref('')
+const savingComment = ref(false)
 
 onMounted(() => {
   loadArticles()
@@ -81,6 +165,100 @@ function formatRelativeTime(dateString) {
   if (diffDays < 7) return `${diffDays}d ago`
   
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+async function toggleComments(articleId) {
+  expandedArticles[articleId] = !expandedArticles[articleId]
+  
+  // Load comments if expanding and not already loaded
+  if (expandedArticles[articleId] && !articleComments[articleId]) {
+    articleComments[articleId] = await fetchCommentsForArticle(articleId)
+  }
+}
+
+function getCommentCount(articleId) {
+  return articleComments[articleId]?.length || 0
+}
+
+function userHasCommented(articleId) {
+  const comments = articleComments[articleId] || []
+  return comments.some(c => c.user_id === currentUser.value?.id)
+}
+
+async function handleAddComment(articleId) {
+  const content = newComments[articleId]?.trim()
+  if (!content) return
+
+  savingComment.value = true
+  
+  const { error } = await addComment({
+    articleId,
+    userId: currentUser.value.id,
+    content
+  })
+  
+  savingComment.value = false
+  
+  if (error) {
+    alert('Failed to post comment. Please try again.')
+    return
+  }
+  
+  // Refresh comments
+  articleComments[articleId] = await fetchCommentsForArticle(articleId)
+  newComments[articleId] = ''
+}
+
+function startEditComment(comment) {
+  editingCommentId.value = comment.id
+  editingCommentContent.value = comment.content
+}
+
+function cancelCommentEdit() {
+  editingCommentId.value = null
+  editingCommentContent.value = ''
+}
+
+async function saveCommentEdit(comment) {
+  if (!editingCommentContent.value.trim()) return
+  
+  savingComment.value = true
+  
+  const { error } = await updateComment({
+    commentId: comment.id,
+    content: editingCommentContent.value,
+    userId: currentUser.value.id,
+    ownerId: comment.user_id
+  })
+  
+  savingComment.value = false
+  
+  if (error) {
+    alert('Failed to update comment. Please try again.')
+    return
+  }
+  
+  // Update local state
+  comment.content = editingCommentContent.value.trim()
+  cancelCommentEdit()
+}
+
+async function handleDeleteComment(articleId, comment) {
+  if (!confirm('Delete this comment?')) return
+  
+  const { error } = await deleteComment({
+    commentId: comment.id,
+    userId: currentUser.value.id,
+    ownerId: comment.user_id
+  })
+  
+  if (error) {
+    alert('Failed to delete comment. Please try again.')
+    return
+  }
+  
+  // Refresh comments
+  articleComments[articleId] = await fetchCommentsForArticle(articleId)
 }
 
 async function handleDelete(id) {
@@ -170,6 +348,7 @@ async function handleDelete(id) {
   gap: 0.75rem;
   font-size: 0.75rem;
   color: var(--gray-500);
+  margin-bottom: 0.75rem;
 }
 
 .article-sharer {
@@ -188,5 +367,136 @@ async function handleDelete(id) {
 
 .article-delete:hover {
   opacity: 1;
+}
+
+/* Comments */
+.comments-section {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--gray-100);
+  padding-top: 0.5rem;
+}
+
+.comments-toggle {
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  color: var(--gray-600);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.comments-toggle:hover {
+  color: var(--primary);
+}
+
+.toggle-arrow {
+  font-size: 0.625rem;
+}
+
+.comments-expanded {
+  margin-top: 0.75rem;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.comment {
+  background: var(--gray-50);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border-left: 3px solid var(--primary);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.comment-author {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--gray-700);
+}
+
+.comment-time {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+.comment-content {
+  font-size: 0.875rem;
+  color: var(--gray-700);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.comment-action-btn {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: 0;
+}
+
+.comment-action-btn:hover {
+  color: var(--primary);
+}
+
+.add-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comment-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.comment-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.comment-edit-form {
+  margin-top: 0.5rem;
+}
+
+.comment-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-small {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.already-commented {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+  font-style: italic;
 }
 </style>
