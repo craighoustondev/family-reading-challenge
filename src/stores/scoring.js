@@ -2,21 +2,52 @@
  * Points configuration
  */
 export const POINTS = {
-  ARTICLE: 10
+  ARTICLE: 10,
+  COMMENT_TIER_1: 10,   // < 50 characters
+  COMMENT_TIER_2: 25,   // 50-99 characters
+  COMMENT_TIER_3: 50,   // 100-249 characters
+  COMMENT_TIER_4: 100   // 250+ characters
+}
+
+/**
+ * Calculate points for a single comment based on its length
+ */
+export function calculateCommentPoints(content) {
+  if (!content || content.length === 0) {
+    return 0
+  }
+
+  const length = content.length
+
+  if (length >= 250) {
+    return POINTS.COMMENT_TIER_4
+  } else if (length >= 100) {
+    return POINTS.COMMENT_TIER_3
+  } else if (length >= 50) {
+    return POINTS.COMMENT_TIER_2
+  } else {
+    return POINTS.COMMENT_TIER_1
+  }
 }
 
 /**
  * Calculate score for a single user based on their activity
  */
-export function calculateUserScore({ articleCount = 0 }) {
-  return articleCount * POINTS.ARTICLE
+export function calculateUserScore({ articleCount = 0, comments = [] }) {
+  const articlePoints = articleCount * POINTS.ARTICLE
+  
+  const commentPoints = comments.reduce((sum, comment) => {
+    return sum + calculateCommentPoints(comment.content)
+  }, 0)
+
+  return articlePoints + commentPoints
 }
 
 /**
  * Calculate leaderboard with scores for all users
  * Returns array sorted by points (highest first)
  */
-export function calculateLeaderboard(users, articles) {
+export function calculateLeaderboard(users, articles, comments = []) {
   // Count articles per user
   const articleCounts = {}
   articles.forEach(article => {
@@ -24,15 +55,31 @@ export function calculateLeaderboard(users, articles) {
     articleCounts[userId] = (articleCounts[userId] || 0) + 1
   })
 
+  // Group comments by user
+  const userComments = {}
+  comments.forEach(comment => {
+    const userId = comment.user_id
+    if (!userComments[userId]) {
+      userComments[userId] = []
+    }
+    userComments[userId].push(comment)
+  })
+
   // Calculate scores for each user
   const leaderboard = users.map(user => {
     const articleCount = articleCounts[user.id] || 0
-    const points = calculateUserScore({ articleCount })
+    const userCommentList = userComments[user.id] || []
+    const commentCount = userCommentList.length
+    const points = calculateUserScore({ 
+      articleCount, 
+      comments: userCommentList 
+    })
 
     return {
       id: user.id,
       name: user.name,
       articleCount,
+      commentCount,
       points
     }
   })

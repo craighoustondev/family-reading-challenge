@@ -25,7 +25,8 @@
             <span v-if="member.id === currentUser?.id" class="you-badge">(you)</span>
           </span>
           <span class="leaderboard-breakdown">
-            {{ member.articleCount }} {{ member.articleCount === 1 ? 'article' : 'articles' }}
+            {{ member.articleCount }} {{ member.articleCount === 1 ? 'article' : 'articles' }}, 
+            {{ member.commentCount }} {{ member.commentCount === 1 ? 'comment' : 'comments' }}
           </span>
         </div>
         <div class="leaderboard-points">
@@ -45,6 +46,26 @@
           <span class="points-rule-icon">📰</span>
           <span class="points-rule-text">Share an article</span>
           <span class="points-rule-value">+10 pts</span>
+        </div>
+        <div class="points-rule-header">
+          <span class="points-rule-icon">💬</span>
+          <span class="points-rule-text">Comment on an article</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">Under 50 characters</span>
+          <span class="points-rule-value">+10 pts</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">50-99 characters</span>
+          <span class="points-rule-value">+25 pts</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">100-249 characters</span>
+          <span class="points-rule-value">+50 pts</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">250+ characters</span>
+          <span class="points-rule-value">+100 pts</span>
         </div>
       </div>
     </div>
@@ -86,8 +107,15 @@ async function loadLeaderboard() {
     
     if (articlesError) throw articlesError
     
+    // Fetch all comments
+    const { data: comments, error: commentsError } = await supabase
+      .from('comments')
+      .select('id, user_id, content')
+    
+    if (commentsError) throw commentsError
+    
     // Calculate leaderboard using scoring module
-    leaderboard.value = calculateLeaderboard(users, articles || [])
+    leaderboard.value = calculateLeaderboard(users, articles || [], comments || [])
   } catch (e) {
     console.error('Error fetching leaderboard:', e)
     error.value = 'Failed to load leaderboard. Please try again.'
@@ -206,6 +234,16 @@ async function loadLeaderboard() {
   padding: 0.5rem 0;
 }
 
+.points-rule-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--gray-200);
+  margin-top: 0.5rem;
+}
+
 .points-rule-icon {
   font-size: 1.25rem;
 }
@@ -220,5 +258,19 @@ async function loadLeaderboard() {
   font-weight: 600;
   color: var(--primary);
   font-size: 0.875rem;
+}
+
+.points-subrule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+  padding-left: 2rem;
+}
+
+.points-subrule-text {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--gray-500);
 }
 </style>
