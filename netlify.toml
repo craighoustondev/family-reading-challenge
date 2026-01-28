@@ -3,9 +3,9 @@
   publish = "dist"
 
 # The Supabase anon key is a PUBLIC/PUBLISHABLE key - it's designed
-# to be exposed in frontend code. This is not a security risk.
+# to be exposed in frontend code. Security is handled by Row Level Security (RLS).
 [build.environment]
-  NETLIFY_SKIP_SENSITIVE_VAR_CHECK = "true"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
 
 # Handle SPA routing - redirect all requests to index.html
 [[redirects]]
