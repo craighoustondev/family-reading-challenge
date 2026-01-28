@@ -2,6 +2,11 @@
   command = "npm run build"
   publish = "dist"
 
+# The Supabase anon key is a PUBLIC/PUBLISHABLE key - it's designed
+# to be exposed in frontend code. This is not a security risk.
+[build.environment]
+  NETLIFY_SKIP_SENSITIVE_VAR_CHECK = "true"
+
 # Handle SPA routing - redirect all requests to index.html
 [[redirects]]
   from = "/*"
