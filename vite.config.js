@@ -15,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'sw-push.js'],
       manifest: {
-        name: 'Family News',
-        short_name: 'News',
-        description: 'Share and discuss news articles with your family',
+        name: 'Family Reading Challenge',
+        short_name: 'Family Reading',
+        description: 'Track your family reading challenge progress',
         theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',
