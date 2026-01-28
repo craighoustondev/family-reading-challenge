@@ -1,8 +1,8 @@
 <template>
   <div class="login">
     <div class="login-card">
-      <div class="login-icon">📚</div>
-      <h1 class="login-title">Family Reading Challenge</h1>
+      <div class="login-icon">📰</div>
+      <h1 class="login-title">Family News</h1>
       <p class="login-subtitle">Who are you?</p>
       
       <div v-if="loading" class="loading">
@@ -38,9 +38,11 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '../stores/user'
+import { usePushNotifications } from '../stores/pushNotifications'
 
 const router = useRouter()
 const { login, fetchUsers } = useUser()
+const { isPushSupported, requestPermission, subscribeToPush } = usePushNotifications()
 
 const users = ref([])
 const loading = ref(true)
@@ -64,8 +66,17 @@ async function loadUsers() {
   }
 }
 
-function selectUser(user) {
+async function selectUser(user) {
   login(user)
+  
+  // Request notification permission after login
+  if (isPushSupported()) {
+    const granted = await requestPermission()
+    if (granted) {
+      await subscribeToPush(user.id)
+    }
+  }
+  
   router.push('/')
 }
 

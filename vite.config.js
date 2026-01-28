@@ -13,11 +13,11 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'sw-push.js'],
       manifest: {
-        name: 'Family Reading Challenge',
-        short_name: 'Reading',
-        description: 'Track your family reading challenge progress',
+        name: 'Family News',
+        short_name: 'News',
+        description: 'Share and discuss news articles with your family',
         theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',
@@ -44,7 +44,9 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Import custom push notification handler
+        importScripts: ['sw-push.js']
       }
     })
   ]

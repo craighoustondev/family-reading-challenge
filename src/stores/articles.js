@@ -26,10 +26,37 @@ export async function fetchArticles() {
 }
 
 /**
+ * Send push notification to all other users about a new article
+ */
+async function sendNewArticleNotification({ title, url, userName, userId }) {
+  try {
+    const response = await fetch('/.netlify/functions/send-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: 'New Article Shared!',
+        body: `${userName} shared: ${title || url}`,
+        url: '/',
+        excludeUserId: userId
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to send notification:', await response.text())
+    }
+  } catch (error) {
+    // Don't fail the article creation if notification fails
+    console.error('Error sending notification:', error)
+  }
+}
+
+/**
  * Add a new article.
  * Validates URL format before inserting.
  */
-export async function addArticle({ url, title, userId }) {
+export async function addArticle({ url, title, userId, userName }) {
   // Validation: URL is required
   if (!url || url.trim().length === 0) {
     return { data: null, error: { message: 'URL is required' } }
@@ -56,6 +83,14 @@ export async function addArticle({ url, title, userId }) {
     console.error('Error adding article:', error)
     return { data: null, error }
   }
+
+  // Send push notification to other users (don't await to avoid blocking)
+  sendNewArticleNotification({
+    title: title?.trim() || null,
+    url: url.trim(),
+    userName: userName || 'Someone',
+    userId
+  })
 
   return { data, error: null }
 }

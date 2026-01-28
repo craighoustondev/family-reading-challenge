@@ -77,7 +77,8 @@ async function handleSubmit() {
   const result = await addArticle({
     url: form.url,
     title: form.title,
-    userId: currentUser.value.id
+    userId: currentUser.value.id,
+    userName: currentUser.value.name
   })
 
   saving.value = false
