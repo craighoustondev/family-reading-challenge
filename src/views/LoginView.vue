@@ -71,10 +71,23 @@ async function selectUser(user) {
   
   // Request notification permission after login
   if (isPushSupported()) {
-    const granted = await requestPermission()
-    if (granted) {
-      await subscribeToPush(user.id)
+    try {
+      const granted = await requestPermission()
+      if (granted) {
+        const result = await subscribeToPush(user.id)
+        if (result.success) {
+          alert('Notifications enabled!')
+        } else {
+          alert('Could not enable notifications: ' + result.error)
+        }
+      } else {
+        alert('Notification permission denied')
+      }
+    } catch (err) {
+      alert('Notification error: ' + err.message)
     }
+  } else {
+    // Push not supported - continue silently
   }
   
   router.push('/')
