@@ -120,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useUser } from '../stores/user'
 import { useArticles } from '../stores/articles'
 import { fetchCommentsForArticle, addComment, updateComment, deleteComment } from '../stores/comments'
@@ -139,6 +139,23 @@ const savingComment = ref(false)
 onMounted(() => {
   loadArticles()
 })
+
+// Load comments for all articles when articles change
+watch(articles, async (newArticles) => {
+  if (newArticles.length > 0) {
+    await loadAllComments(newArticles)
+  }
+}, { immediate: true })
+
+async function loadAllComments(articlesList) {
+  // Load comments for all articles in parallel
+  const promises = articlesList.map(async (article) => {
+    if (!articleComments[article.id]) {
+      articleComments[article.id] = await fetchCommentsForArticle(article.id)
+    }
+  })
+  await Promise.all(promises)
+}
 
 function extractDomain(url) {
   try {
