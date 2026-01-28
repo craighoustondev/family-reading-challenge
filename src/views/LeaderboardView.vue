@@ -8,7 +8,7 @@
 
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
-      <button class="btn btn-primary" @click="fetchLeaderboard">Try Again</button>
+      <button class="btn btn-primary" @click="loadLeaderboard">Try Again</button>
     </div>
 
     <div v-else>
@@ -19,18 +19,33 @@
         >
           {{ index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1 }}
         </span>
-        <span class="leaderboard-name" :class="{ 'is-me': member.id === currentUser?.id }">
-          {{ member.name }}
-          <span v-if="member.id === currentUser?.id" class="you-badge">(you)</span>
-        </span>
-        <div class="leaderboard-stats">
-          <span class="leaderboard-count">{{ member.book_count }} books</span>
-          <span class="leaderboard-pages">{{ member.total_pages }} pages</span>
+        <div class="leaderboard-info">
+          <span class="leaderboard-name" :class="{ 'is-me': member.id === currentUser?.id }">
+            {{ member.name }}
+            <span v-if="member.id === currentUser?.id" class="you-badge">(you)</span>
+          </span>
+          <span class="leaderboard-breakdown">
+            {{ member.articleCount }} {{ member.articleCount === 1 ? 'article' : 'articles' }}
+          </span>
+        </div>
+        <div class="leaderboard-points">
+          <span class="points-value">{{ member.points }}</span>
+          <span class="points-label">pts</span>
         </div>
       </div>
 
       <div v-if="leaderboard.length === 0" class="empty-state">
-        <p>No books have been logged yet. Be the first!</p>
+        <p>No articles have been shared yet. Be the first!</p>
+      </div>
+
+      <!-- Points breakdown -->
+      <div class="points-info">
+        <h3>How to earn points</h3>
+        <div class="points-rule">
+          <span class="points-rule-icon">📰</span>
+          <span class="points-rule-text">Share an article</span>
+          <span class="points-rule-value">+10 pts</span>
+        </div>
       </div>
     </div>
   </div>
@@ -40,6 +55,7 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useUser } from '../stores/user'
+import { calculateLeaderboard } from '../stores/scoring'
 
 const { currentUser } = useUser()
 
@@ -48,48 +64,30 @@ const loading = ref(true)
 const error = ref(null)
 
 onMounted(() => {
-  fetchLeaderboard()
+  loadLeaderboard()
 })
 
-async function fetchLeaderboard() {
+async function loadLeaderboard() {
   loading.value = true
   error.value = null
   
   try {
-    // Fetch all users with their book counts
+    // Fetch all users
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('id, name')
     
     if (usersError) throw usersError
     
-    // Fetch book counts for each user
-    const { data: books, error: booksError } = await supabase
-      .from('books')
-      .select('user_id, pages')
+    // Fetch all articles
+    const { data: articles, error: articlesError } = await supabase
+      .from('articles')
+      .select('id, user_id')
     
-    if (booksError) throw booksError
+    if (articlesError) throw articlesError
     
-    // Calculate stats for each user
-    const stats = users.map(user => {
-      const userBooks = books.filter(b => b.user_id === user.id)
-      return {
-        id: user.id,
-        name: user.name,
-        book_count: userBooks.length,
-        total_pages: userBooks.reduce((sum, b) => sum + (b.pages || 0), 0)
-      }
-    })
-    
-    // Sort by book count (descending), then by pages (descending)
-    stats.sort((a, b) => {
-      if (b.book_count !== a.book_count) {
-        return b.book_count - a.book_count
-      }
-      return b.total_pages - a.total_pages
-    })
-    
-    leaderboard.value = stats
+    // Calculate leaderboard using scoring module
+    leaderboard.value = calculateLeaderboard(users, articles || [])
   } catch (e) {
     console.error('Error fetching leaderboard:', e)
     error.value = 'Failed to load leaderboard. Please try again.'
@@ -112,20 +110,38 @@ async function fetchLeaderboard() {
   color: var(--danger);
 }
 
-.leaderboard-stats {
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--gray-200);
+}
+
+.leaderboard-rank {
+  font-size: 1.5rem;
+  font-weight: 700;
+  min-width: 2.5rem;
+  text-align: center;
+}
+
+.leaderboard-rank.gold { color: #fbbf24; }
+.leaderboard-rank.silver { color: #9ca3af; }
+.leaderboard-rank.bronze { color: #d97706; }
+
+.leaderboard-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  gap: 0.125rem;
 }
 
-.leaderboard-count {
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.leaderboard-pages {
-  font-size: 0.75rem;
-  color: var(--gray-500);
+.leaderboard-name {
+  font-weight: 500;
+  color: var(--gray-900);
 }
 
 .is-me {
@@ -138,9 +154,71 @@ async function fetchLeaderboard() {
   font-weight: normal;
 }
 
+.leaderboard-breakdown {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+.leaderboard-points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3.5rem;
+}
+
+.points-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.points-label {
+  font-size: 0.625rem;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
 .empty-state {
   text-align: center;
   padding: 2rem;
   color: var(--gray-500);
+}
+
+.points-info {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: var(--gray-50);
+  border-radius: 0.75rem;
+}
+
+.points-info h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 0.75rem;
+}
+
+.points-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.points-rule-icon {
+  font-size: 1.25rem;
+}
+
+.points-rule-text {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--gray-600);
+}
+
+.points-rule-value {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 0.875rem;
 }
 </style>
