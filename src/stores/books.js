@@ -110,9 +110,29 @@ export async function addBook({ title, author, userId }) {
 }
 
 /**
+ * Send notification about reading progress
+ */
+async function sendReadingProgressNotification({ bookTitle, pagesRead, userName, userId }) {
+  try {
+    await fetch('/.netlify/functions/send-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Reading Progress',
+        body: `${userName} read ${pagesRead} pages of "${bookTitle}"`,
+        url: '/',
+        excludeUserId: userId
+      })
+    })
+  } catch (err) {
+    console.error('Failed to send reading progress notification:', err)
+  }
+}
+
+/**
  * Add a reading session (log pages read)
  */
-export async function addReadingSession({ bookId, pagesRead }) {
+export async function addReadingSession({ bookId, pagesRead, bookTitle, userName, userId }) {
   if (!pagesRead || pagesRead <= 0) {
     return { data: null, error: { message: 'Pages must be greater than 0' } }
   }
@@ -129,6 +149,16 @@ export async function addReadingSession({ bookId, pagesRead }) {
   if (error) {
     console.error('Error adding reading session:', error)
     return { data: null, error }
+  }
+
+  // Send notification (don't await)
+  if (bookTitle && userName && userId) {
+    sendReadingProgressNotification({
+      bookTitle,
+      pagesRead,
+      userName,
+      userId
+    })
   }
 
   return { data, error: null }

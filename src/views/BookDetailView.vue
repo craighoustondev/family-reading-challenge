@@ -132,7 +132,10 @@ async function handleLogPages() {
 
   const result = await addReadingSession({
     bookId: book.value.id,
-    pagesRead: pagesToLog.value
+    pagesRead: pagesToLog.value,
+    bookTitle: book.value.title,
+    userName: currentUser.value.name,
+    userId: currentUser.value.id
   })
 
   logging.value = false
