@@ -1,7 +1,7 @@
 <template>
   <div class="app" v-if="isLoggedIn">
     <header class="header">
-      <h1>📰 Family News</h1>
+      <h1>📚 Family Reading Challenge</h1>
       <div class="header-user" @click="showLogoutMenu = !showLogoutMenu">
         <span class="header-avatar">{{ userInitials }}</span>
         <div v-if="showLogoutMenu" class="logout-menu">
