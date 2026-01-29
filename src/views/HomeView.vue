@@ -3,130 +3,175 @@
     <!-- Welcome message -->
     <div class="welcome-card">
       <h2>Welcome, {{ currentUser?.name }}!</h2>
-      <p>See what your family is reading</p>
+      <p>See what your family is sharing</p>
     </div>
 
-    <!-- Articles list -->
-    <h2 class="section-title">Shared Articles</h2>
+    <!-- Combined Feed -->
+    <h2 class="section-title">Family Feed</h2>
     
     <div v-if="loading" class="loading-state">
-      Loading articles...
+      Loading...
     </div>
 
-    <div v-else-if="articles.length === 0" class="empty-state">
-      <div class="empty-state-icon">📰</div>
-      <div class="empty-state-title">No articles shared yet</div>
-      <p>Be the first to share an interesting article with your family!</p>
+    <div v-else-if="feedItems.length === 0" class="empty-state">
+      <div class="empty-state-icon">📚</div>
+      <div class="empty-state-title">Nothing shared yet</div>
+      <p>Be the first to share an article or add a book!</p>
     </div>
 
-    <div v-else class="articles-list">
-      <div v-for="article in articles" :key="article.id" class="article-item">
-        <div class="article-content">
-          <a :href="article.url" target="_blank" rel="noopener noreferrer" class="article-link">
-            <span class="article-title">{{ article.title || extractDomain(article.url) }}</span>
-            <span class="article-url">{{ extractDomain(article.url) }}</span>
-          </a>
-          
-          <div class="article-meta">
-            <span class="article-sharer">Shared by {{ article.users?.name || 'Unknown' }}</span>
-            <span class="article-time">{{ formatRelativeTime(article.created_at) }}</span>
+    <div v-else class="feed-list">
+      <template v-for="item in feedItems" :key="item.id + '-' + item.type">
+        <!-- Book Card -->
+        <router-link 
+          v-if="item.type === 'book'"
+          :to="`/book/${item.id}`"
+          class="feed-item book-item"
+        >
+          <div class="item-icon">📚</div>
+          <div class="item-content">
+            <div class="item-title">{{ item.title }}</div>
+            <div v-if="item.author" class="item-subtitle">by {{ item.author }}</div>
+            <div class="item-meta">
+              <span class="item-user">{{ item.users?.name }}</span>
+              <span class="item-status" :class="{ completed: item.completed }">
+                {{ item.completed ? '✅ Completed' : '📖 Reading' }}
+              </span>
+              <span class="item-pages">{{ item.totalPages }} pages</span>
+            </div>
           </div>
+        </router-link>
 
-          <!-- Comments Section -->
-          <div class="comments-section">
-            <button 
-              class="comments-toggle"
-              @click="toggleComments(article.id)"
-            >
-              💬 {{ getCommentCount(article.id) }} {{ getCommentCount(article.id) === 1 ? 'comment' : 'comments' }}
-              <span class="toggle-arrow">{{ expandedArticles[article.id] ? '▼' : '▶' }}</span>
-            </button>
+        <!-- Article Card -->
+        <div v-else class="feed-item article-item">
+          <div class="article-content">
+            <a :href="item.url" target="_blank" rel="noopener noreferrer" class="article-link">
+              <span class="article-title">{{ item.title || extractDomain(item.url) }}</span>
+              <span class="article-url">{{ extractDomain(item.url) }}</span>
+            </a>
+            
+            <div class="article-meta">
+              <span class="article-sharer">Shared by {{ item.users?.name || 'Unknown' }}</span>
+              <span class="article-time">{{ formatRelativeTime(item.created_at) }}</span>
+            </div>
 
-            <div v-if="expandedArticles[article.id]" class="comments-expanded">
-              <!-- Existing comments -->
-              <div v-if="articleComments[article.id]?.length > 0" class="comments-list">
-                <div 
-                  v-for="comment in articleComments[article.id]" 
-                  :key="comment.id" 
-                  class="comment"
-                >
-                  <div class="comment-header">
-                    <span class="comment-author">{{ comment.users?.name }}</span>
-                    <span class="comment-time">{{ formatRelativeTime(comment.created_at) }}</span>
-                  </div>
-                  
-                  <!-- Edit mode -->
-                  <div v-if="editingCommentId === comment.id" class="comment-edit-form">
-                    <textarea
-                      v-model="editingCommentContent"
-                      class="comment-textarea"
-                      rows="2"
-                    ></textarea>
-                    <div class="comment-edit-actions">
-                      <button class="btn btn-small btn-primary" @click="saveCommentEdit(comment)" :disabled="savingComment">
-                        Save
-                      </button>
-                      <button class="btn btn-small" @click="cancelCommentEdit">Cancel</button>
+            <!-- Comments Section -->
+            <div class="comments-section">
+              <button 
+                class="comments-toggle"
+                @click="toggleComments(item.id)"
+              >
+                💬 {{ getCommentCount(item.id) }} {{ getCommentCount(item.id) === 1 ? 'comment' : 'comments' }}
+                <span class="toggle-arrow">{{ expandedArticles[item.id] ? '▼' : '▶' }}</span>
+              </button>
+
+              <div v-if="expandedArticles[item.id]" class="comments-expanded">
+                <!-- Existing comments -->
+                <div v-if="articleComments[item.id]?.length > 0" class="comments-list">
+                  <div 
+                    v-for="comment in articleComments[item.id]" 
+                    :key="comment.id" 
+                    class="comment"
+                  >
+                    <div class="comment-header">
+                      <span class="comment-author">{{ comment.users?.name }}</span>
+                      <span class="comment-time">{{ formatRelativeTime(comment.created_at) }}</span>
                     </div>
-                  </div>
-                  
-                  <!-- Display mode -->
-                  <div v-else>
-                    <p class="comment-content">{{ comment.content }}</p>
-                    <div v-if="comment.user_id === currentUser?.id" class="comment-actions">
-                      <button class="comment-action-btn" @click="startEditComment(comment)">Edit</button>
-                      <button class="comment-action-btn" @click="handleDeleteComment(article.id, comment)">Delete</button>
+                    
+                    <!-- Edit mode -->
+                    <div v-if="editingCommentId === comment.id" class="comment-edit-form">
+                      <textarea
+                        v-model="editingCommentContent"
+                        class="comment-textarea"
+                        rows="2"
+                      ></textarea>
+                      <div class="comment-edit-actions">
+                        <button class="btn btn-small btn-primary" @click="saveCommentEdit(comment)" :disabled="savingComment">
+                          Save
+                        </button>
+                        <button class="btn btn-small" @click="cancelCommentEdit">Cancel</button>
+                      </div>
+                    </div>
+                    
+                    <!-- Display mode -->
+                    <div v-else>
+                      <p class="comment-content">{{ comment.content }}</p>
+                      <div v-if="comment.user_id === currentUser?.id" class="comment-actions">
+                        <button class="comment-action-btn" @click="startEditComment(comment)">Edit</button>
+                        <button class="comment-action-btn" @click="handleDeleteComment(item.id, comment)">Delete</button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Add comment form (if user hasn't commented yet) -->
-              <div v-if="!userHasCommented(article.id)" class="add-comment-form">
-                <textarea
-                  v-model="newComments[article.id]"
-                  class="comment-textarea"
-                  placeholder="Add your comment..."
-                  rows="2"
-                ></textarea>
-                <button 
-                  class="btn btn-small btn-primary"
-                  @click="handleAddComment(article.id)"
-                  :disabled="!newComments[article.id]?.trim() || savingComment"
-                >
-                  {{ savingComment ? 'Posting...' : 'Post Comment' }}
-                </button>
-              </div>
+                <!-- Add comment form (if user hasn't commented yet) -->
+                <div v-if="!userHasCommented(item.id)" class="add-comment-form">
+                  <textarea
+                    v-model="newComments[item.id]"
+                    class="comment-textarea"
+                    placeholder="Add your comment..."
+                    rows="2"
+                  ></textarea>
+                  <button 
+                    class="btn btn-small btn-primary"
+                    @click="handleAddComment(item.id)"
+                    :disabled="!newComments[item.id]?.trim() || savingComment"
+                  >
+                    {{ savingComment ? 'Posting...' : 'Post Comment' }}
+                  </button>
+                </div>
 
-              <!-- Show message if user already commented -->
-              <div v-else class="already-commented">
-                <span>✓ You've commented on this article</span>
+                <!-- Show message if user already commented -->
+                <div v-else class="already-commented">
+                  <span>✓ You've commented on this article</span>
+                </div>
               </div>
             </div>
           </div>
+          
+          <button 
+            v-if="item.user_id === currentUser?.id"
+            class="article-delete" 
+            @click="handleDelete(item.id)" 
+            title="Delete"
+          >
+            🗑️
+          </button>
         </div>
-        
-        <button 
-          v-if="article.user_id === currentUser?.id"
-          class="article-delete" 
-          @click="handleDelete(article.id)" 
-          title="Delete"
-        >
-          🗑️
-        </button>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useUser } from '../stores/user'
 import { useArticles } from '../stores/articles'
+import { useBooks } from '../stores/books'
 import { fetchCommentsForArticle, addComment, updateComment, deleteComment } from '../stores/comments'
 
 const { currentUser } = useUser()
-const { articles, loading, loadArticles, deleteArticle } = useArticles()
+const { articles, loading: articlesLoading, loadArticles, deleteArticle } = useArticles()
+const { books, loading: booksLoading, loadBooks } = useBooks()
+
+// Combined loading state
+const loading = computed(() => articlesLoading.value || booksLoading.value)
+
+// Combined feed sorted by most recent activity
+const feedItems = computed(() => {
+  const articleItems = articles.value.map(a => ({
+    ...a,
+    type: 'article',
+    sortDate: new Date(a.created_at)
+  }))
+  
+  const bookItems = books.value.map(b => ({
+    ...b,
+    type: 'book',
+    sortDate: new Date(b.latestActivity || b.created_at)
+  }))
+  
+  return [...articleItems, ...bookItems].sort((a, b) => b.sortDate - a.sortDate)
+})
 
 // Comments state
 const articleComments = reactive({})
@@ -138,6 +183,7 @@ const savingComment = ref(false)
 
 onMounted(() => {
   loadArticles()
+  loadBooks()
 })
 
 // Load comments for all articles when articles change
@@ -315,13 +361,13 @@ async function handleDelete(id) {
   color: var(--gray-500);
 }
 
-.articles-list {
+.feed-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.article-item {
+.feed-item {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -329,6 +375,78 @@ async function handleDelete(id) {
   background: white;
   border-radius: 0.75rem;
   border: 1px solid var(--gray-200);
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Book specific styles */
+.book-item {
+  border-left: 4px solid var(--primary);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.book-item:hover {
+  border-color: var(--primary-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.item-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-title {
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 0.125rem;
+}
+
+.item-subtitle {
+  font-size: 0.875rem;
+  color: var(--gray-600);
+  margin-bottom: 0.5rem;
+}
+
+.item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+.item-user {
+  font-weight: 500;
+}
+
+.item-status {
+  padding: 0.125rem 0.5rem;
+  border-radius: 1rem;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.item-status.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.item-pages {
+  color: var(--gray-500);
+}
+
+/* Article specific styles */
+.article-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
 .article-content {

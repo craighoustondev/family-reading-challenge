@@ -3,7 +3,7 @@
     <div class="card">
       <h2 class="section-title">Add a Book</h2>
       
-      <form @submit.prevent="addBook">
+      <form @submit.prevent="handleSubmit">
         <div class="form-group">
           <label class="form-label" for="title">Book Title *</label>
           <input 
@@ -11,46 +11,24 @@
             v-model="form.title"
             type="text"
             class="form-input"
-            placeholder="Enter book title"
+            placeholder="e.g. The Great Gatsby"
             required
           />
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="author">Author</label>
+          <label class="form-label" for="author">Author (optional)</label>
           <input 
             id="author"
             v-model="form.author"
             type="text"
             class="form-input"
-            placeholder="Enter author name"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="pages">Number of Pages</label>
-          <input 
-            id="pages"
-            v-model.number="form.pages"
-            type="number"
-            class="form-input"
-            placeholder="Enter page count"
-            min="1"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="dateFinished">Date Finished</label>
-          <input 
-            id="dateFinished"
-            v-model="form.dateFinished"
-            type="date"
-            class="form-input"
+            placeholder="e.g. F. Scott Fitzgerald"
           />
         </div>
 
         <button type="submit" class="btn btn-success btn-full" :disabled="saving">
-          {{ saving ? 'Saving...' : '✓ Add Book' }}
+          {{ saving ? 'Adding...' : '📚 Add Book' }}
         </button>
       </form>
     </div>
@@ -58,7 +36,7 @@
     <div v-if="showSuccess" class="success-message">
       <div class="card" style="background: #ecfdf5; border-color: #10b981;">
         <p style="color: #065f46; text-align: center;">
-          ✅ Book added successfully!
+          ✅ Book added! Start logging your reading progress.
         </p>
       </div>
     </div>
@@ -76,8 +54,8 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '../lib/supabase'
 import { useUser } from '../stores/user'
+import { addBook } from '../stores/books'
 
 const router = useRouter()
 const { currentUser } = useUser()
@@ -88,43 +66,41 @@ const saving = ref(false)
 
 const form = reactive({
   title: '',
-  author: '',
-  pages: null,
-  dateFinished: new Date().toISOString().split('T')[0]
+  author: ''
 })
 
-async function addBook() {
+async function handleSubmit() {
   saving.value = true
   errorMessage.value = ''
-  
-  const { error } = await supabase
-    .from('books')
-    .insert({
-      user_id: currentUser.value.id,
-      title: form.title,
-      author: form.author || null,
-      pages: form.pages || 0,
-      date_finished: form.dateFinished || null
-    })
-  
+
+  const result = await addBook({
+    title: form.title,
+    author: form.author,
+    userId: currentUser.value.id
+  })
+
   saving.value = false
-  
-  if (error) {
-    console.error('Error adding book:', error)
-    errorMessage.value = 'Failed to add book. Please try again.'
+
+  if (result.error) {
+    errorMessage.value = result.error.message
     return
   }
-  
-  // Show success and reset form
+
+  // Success - show message and redirect to the book detail
   showSuccess.value = true
   form.title = ''
   form.author = ''
-  form.pages = null
-  form.dateFinished = new Date().toISOString().split('T')[0]
-  
+
   setTimeout(() => {
     showSuccess.value = false
-    router.push('/')
+    router.push(`/book/${result.data.id}`)
   }, 1500)
 }
 </script>
+
+<style scoped>
+.success-message,
+.error-message {
+  margin-top: 1rem;
+}
+</style>

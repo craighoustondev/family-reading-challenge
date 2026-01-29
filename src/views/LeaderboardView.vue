@@ -26,7 +26,9 @@
           </span>
           <span class="leaderboard-breakdown">
             {{ member.articleCount }} {{ member.articleCount === 1 ? 'article' : 'articles' }}, 
-            {{ member.commentCount }} {{ member.commentCount === 1 ? 'comment' : 'comments' }}
+            {{ member.commentCount }} {{ member.commentCount === 1 ? 'comment' : 'comments' }},
+            {{ member.pagesRead }} pages, 
+            {{ member.booksCompleted }} {{ member.booksCompleted === 1 ? 'book' : 'books' }}
           </span>
         </div>
         <div class="leaderboard-points">
@@ -65,6 +67,18 @@
         </div>
         <div class="points-subrule">
           <span class="points-subrule-text">250+ characters</span>
+          <span class="points-rule-value">+100 pts</span>
+        </div>
+        <div class="points-rule-header">
+          <span class="points-rule-icon">📚</span>
+          <span class="points-rule-text">Reading books</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">Per page read</span>
+          <span class="points-rule-value">+1 pt</span>
+        </div>
+        <div class="points-subrule">
+          <span class="points-subrule-text">Complete a book</span>
           <span class="points-rule-value">+100 pts</span>
         </div>
       </div>
@@ -113,9 +127,29 @@ async function loadLeaderboard() {
       .select('id, user_id, content')
     
     if (commentsError) throw commentsError
+
+    // Fetch all books
+    const { data: books, error: booksError } = await supabase
+      .from('books')
+      .select('id, user_id, completed')
+    
+    if (booksError) throw booksError
+
+    // Fetch all reading sessions with book info
+    const { data: readingSessions, error: sessionsError } = await supabase
+      .from('reading_sessions')
+      .select('id, pages_read, books(user_id)')
+    
+    if (sessionsError) throw sessionsError
     
     // Calculate leaderboard using scoring module
-    leaderboard.value = calculateLeaderboard(users, articles || [], comments || [])
+    leaderboard.value = calculateLeaderboard(
+      users, 
+      articles || [], 
+      comments || [],
+      books || [],
+      readingSessions || []
+    )
   } catch (e) {
     console.error('Error fetching leaderboard:', e)
     error.value = 'Failed to load leaderboard. Please try again.'
