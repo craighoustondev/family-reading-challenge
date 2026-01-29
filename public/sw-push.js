@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
   const data = event.data.json()
   
   const options = {
-    body: data.body || 'New article shared!',
+    body: data.body || 'New activity from your family!',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     vibrate: [100, 50, 100],
@@ -20,7 +20,7 @@ self.addEventListener('push', (event) => {
     actions: [
       {
         action: 'open',
-        title: 'View Article'
+        title: 'View'
       },
       {
         action: 'close',
@@ -30,7 +30,7 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Family News', options)
+    self.registration.showNotification(data.title || 'Family Reading Challenge', options)
   )
 })
 

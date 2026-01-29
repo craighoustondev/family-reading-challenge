@@ -60,8 +60,8 @@ exports.handler = async (event) => {
 
     // Send notification to each subscription
     const notificationPayload = JSON.stringify({
-      title: title || 'Family News',
-      body: body || 'New article shared!',
+      title: title || 'Family Reading Challenge',
+      body: body || 'New activity from your family!',
       url: url || '/'
     })
 

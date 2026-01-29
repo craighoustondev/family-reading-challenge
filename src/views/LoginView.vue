@@ -1,8 +1,8 @@
 <template>
   <div class="login">
     <div class="login-card">
-      <div class="login-icon">📰</div>
-      <h1 class="login-title">Family News</h1>
+      <div class="login-icon">📚</div>  
+      <h1 class="login-title">Family Reading Challenge</h1>
       <p class="login-subtitle">Who are you?</p>
       
       <div v-if="loading" class="loading">
