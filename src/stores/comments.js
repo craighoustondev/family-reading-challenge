@@ -27,10 +27,30 @@ export async function fetchCommentsForArticle(articleId) {
 }
 
 /**
+ * Send push notification about a new comment
+ */
+async function sendCommentNotification({ articleTitle, articleOwnerId, commenterName, commenterId }) {
+  try {
+    await fetch('/.netlify/functions/send-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'New Comment',
+        body: `${commenterName} commented on "${articleTitle || 'an article'}"`,
+        url: '/',
+        excludeUserId: commenterId
+      })
+    })
+  } catch (err) {
+    console.error('Failed to send comment notification:', err)
+  }
+}
+
+/**
  * Add a comment to an article.
  * Each user can only have one comment per article (upsert behavior).
  */
-export async function addComment({ articleId, userId, content }) {
+export async function addComment({ articleId, userId, content, articleTitle, articleOwnerId, userName }) {
   // Validation: content is required
   if (!content || content.trim().length === 0) {
     return { data: null, error: { message: 'Comment content is required' } }
@@ -54,6 +74,16 @@ export async function addComment({ articleId, userId, content }) {
   if (error) {
     console.error('Error adding comment:', error)
     return { data: null, error }
+  }
+
+  // Send notification to article owner and others (don't await)
+  if (articleOwnerId && userName) {
+    sendCommentNotification({
+      articleTitle,
+      articleOwnerId,
+      commenterName: userName,
+      commenterId: userId
+    })
   }
 
   return { data, error: null }

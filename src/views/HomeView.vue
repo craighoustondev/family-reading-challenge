@@ -252,12 +252,18 @@ async function handleAddComment(articleId) {
   const content = newComments[articleId]?.trim()
   if (!content) return
 
+  // Find the article to get owner info for notification
+  const article = feedItems.value.find(item => item.id === articleId && item.type === 'article')
+
   savingComment.value = true
   
   const { error } = await addComment({
     articleId,
     userId: currentUser.value.id,
-    content
+    content,
+    articleTitle: article?.title || null,
+    articleOwnerId: article?.user_id,
+    userName: currentUser.value.name
   })
   
   savingComment.value = false
