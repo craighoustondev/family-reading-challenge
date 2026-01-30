@@ -2,6 +2,26 @@
   <div class="leaderboard">
     <h2 class="section-title">🏆 Family Leaderboard</h2>
     
+    <!-- Time Period Selector -->
+    <div class="period-selector">
+      <select v-model="selectedPeriod" class="period-dropdown" @change="updateLeaderboard">
+        <option value="all">All Time</option>
+        <option v-for="month in availableMonths" :key="month.value" :value="month.value">
+          {{ month.label }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Monthly Champion Banner -->
+    <div v-if="isPastMonth && champion" class="champion-banner">
+      <div class="champion-trophy">🏆</div>
+      <div class="champion-info">
+        <div class="champion-title">{{ selectedMonthLabel }} Champion</div>
+        <div class="champion-name">{{ champion.name }}</div>
+        <div class="champion-points">{{ champion.points }} points</div>
+      </div>
+    </div>
+    
     <div v-if="loading" class="loading-state">
       Loading leaderboard...
     </div>
@@ -37,8 +57,9 @@
         </div>
       </div>
 
-      <div v-if="leaderboard.length === 0" class="empty-state">
-        <p>No articles have been shared yet. Be the first!</p>
+      <div v-if="leaderboard.length === 0 || allZeroPoints" class="empty-state">
+        <p v-if="selectedPeriod === 'all'">No activity yet. Be the first to share something!</p>
+        <p v-else>No activity in {{ selectedMonthLabel }}.</p>
       </div>
 
       <!-- Points breakdown -->
@@ -87,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useUser } from '../stores/user'
 import { calculateLeaderboard } from '../stores/scoring'
@@ -97,6 +118,45 @@ const { currentUser } = useUser()
 const leaderboard = ref([])
 const loading = ref(true)
 const error = ref(null)
+const selectedPeriod = ref('all')
+const availableMonths = ref([])
+
+// Store raw data for filtering
+const allData = ref({
+  users: [],
+  articles: [],
+  comments: [],
+  books: [],
+  readingSessions: []
+})
+
+// Check if selected period is a past month
+const isPastMonth = computed(() => {
+  if (selectedPeriod.value === 'all') return false
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return selectedPeriod.value < currentMonth
+})
+
+// Get champion (first place) for display
+const champion = computed(() => {
+  if (leaderboard.value.length > 0 && leaderboard.value[0].points > 0) {
+    return leaderboard.value[0]
+  }
+  return null
+})
+
+// Get formatted month label
+const selectedMonthLabel = computed(() => {
+  if (selectedPeriod.value === 'all') return 'All Time'
+  const month = availableMonths.value.find(m => m.value === selectedPeriod.value)
+  return month?.label || selectedPeriod.value
+})
+
+// Check if all users have zero points
+const allZeroPoints = computed(() => {
+  return leaderboard.value.every(m => m.points === 0)
+})
 
 onMounted(() => {
   loadLeaderboard()
@@ -114,42 +174,48 @@ async function loadLeaderboard() {
     
     if (usersError) throw usersError
     
-    // Fetch all articles
+    // Fetch all articles with timestamps
     const { data: articles, error: articlesError } = await supabase
       .from('articles')
-      .select('id, user_id')
+      .select('id, user_id, created_at')
     
     if (articlesError) throw articlesError
     
-    // Fetch all comments
+    // Fetch all comments with timestamps
     const { data: comments, error: commentsError } = await supabase
       .from('comments')
-      .select('id, user_id, content')
+      .select('id, user_id, content, created_at')
     
     if (commentsError) throw commentsError
 
-    // Fetch all books
+    // Fetch all books with timestamps
     const { data: books, error: booksError } = await supabase
       .from('books')
-      .select('id, user_id, completed')
+      .select('id, user_id, completed, completed_at, created_at')
     
     if (booksError) throw booksError
 
-    // Fetch all reading sessions with book info
+    // Fetch all reading sessions with timestamps and book info
     const { data: readingSessions, error: sessionsError } = await supabase
       .from('reading_sessions')
-      .select('id, pages_read, books(user_id)')
+      .select('id, pages_read, created_at, books(user_id)')
     
     if (sessionsError) throw sessionsError
     
-    // Calculate leaderboard using scoring module
-    leaderboard.value = calculateLeaderboard(
-      users, 
-      articles || [], 
-      comments || [],
-      books || [],
-      readingSessions || []
-    )
+    // Store raw data
+    allData.value = {
+      users: users || [],
+      articles: articles || [],
+      comments: comments || [],
+      books: books || [],
+      readingSessions: readingSessions || []
+    }
+
+    // Calculate available months from all data
+    calculateAvailableMonths()
+    
+    // Update leaderboard with current filter
+    updateLeaderboard()
   } catch (e) {
     console.error('Error fetching leaderboard:', e)
     error.value = 'Failed to load leaderboard. Please try again.'
@@ -157,9 +223,146 @@ async function loadLeaderboard() {
     loading.value = false
   }
 }
+
+function calculateAvailableMonths() {
+  const months = new Set()
+  
+  // Collect all dates from various sources
+  const dates = [
+    ...allData.value.articles.map(a => a.created_at),
+    ...allData.value.comments.map(c => c.created_at),
+    ...allData.value.books.map(b => b.created_at),
+    ...allData.value.readingSessions.map(s => s.created_at)
+  ].filter(Boolean)
+  
+  dates.forEach(dateStr => {
+    const date = new Date(dateStr)
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    months.add(monthKey)
+  })
+  
+  // Sort months in descending order (newest first)
+  const sortedMonths = Array.from(months).sort((a, b) => b.localeCompare(a))
+  
+  // Format for display
+  availableMonths.value = sortedMonths.map(monthKey => {
+    const [year, month] = monthKey.split('-')
+    const date = new Date(year, parseInt(month) - 1, 1)
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    return { value: monthKey, label }
+  })
+}
+
+function filterByMonth(items, dateField = 'created_at') {
+  if (selectedPeriod.value === 'all') return items
+  
+  const [year, month] = selectedPeriod.value.split('-').map(Number)
+  const startDate = new Date(year, month - 1, 1)
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999) // Last day of month
+  
+  return items.filter(item => {
+    const itemDate = new Date(item[dateField])
+    return itemDate >= startDate && itemDate <= endDate
+  })
+}
+
+function updateLeaderboard() {
+  const { users, articles, comments, books, readingSessions } = allData.value
+  
+  // Filter data by selected period
+  const filteredArticles = filterByMonth(articles)
+  const filteredComments = filterByMonth(comments)
+  const filteredSessions = filterByMonth(readingSessions)
+  
+  // For books completed, use completed_at if available, otherwise created_at
+  const filteredBooks = selectedPeriod.value === 'all' 
+    ? books 
+    : books.filter(book => {
+        if (!book.completed) return false
+        const dateField = book.completed_at || book.created_at
+        if (!dateField) return false
+        
+        const [year, month] = selectedPeriod.value.split('-').map(Number)
+        const startDate = new Date(year, month - 1, 1)
+        const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+        const bookDate = new Date(dateField)
+        return bookDate >= startDate && bookDate <= endDate
+      })
+  
+  // Calculate leaderboard using scoring module
+  leaderboard.value = calculateLeaderboard(
+    users,
+    filteredArticles,
+    filteredComments,
+    filteredBooks,
+    filteredSessions
+  )
+}
 </script>
 
 <style scoped>
+.period-selector {
+  margin-bottom: 1rem;
+}
+
+.period-dropdown {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  background: white;
+  color: var(--gray-900);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+}
+
+.period-dropdown:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.champion-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  border: 2px solid #f59e0b;
+}
+
+.champion-trophy {
+  font-size: 3rem;
+}
+
+.champion-info {
+  flex: 1;
+}
+
+.champion-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.champion-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #78350f;
+}
+
+.champion-points {
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
 .loading-state,
 .error-state {
   text-align: center;
